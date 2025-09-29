@@ -58,35 +58,46 @@ class Hand:
         self.cards = []
             
 class Dealer:
-    def __init__(self, shoe: Shoe):
+
+    def __init__(self, table: "Table"):
         self.name = "Dealer"
-        self.shoe = shoe
+        self.table = table
     
     def prepare_shoe(self):
-        cards = self.shoe.cards
-        cutcard = CutCard()                                 # Create a cut card
-        shuffle(cards)                                      # Shuffle the shoe
-        cut_index = randint(10, len(cards)-10)              # Find a random cut position
-        cards = cards[cut_index:] + cards[:cut_index]       # Complete the cut
-        cards.insert(int(len(cards) * .75 + randint(-9,9)), # Place cutcard for
-                     cutcard)                               # end of shoe
-        self.shoe.cards = cards
-        self.shoe.is_active = True
+        cards = self.table.shoe.cards
+        discard_tray = self.table.discard_tray
+        cutcard = CutCard()                                     # Create a cut card
+        shuffle(cards)                                          # Shuffle the shoe
+        cut_index = randint(10, len(cards)-10)                  # Find a random cut position
+        cards = cards[cut_index:] + cards[:cut_index]           # Complete the cut
+        cards.insert(int(len(cards) * .75 + randint(-9,9)),     # Place cutcard for
+                     cutcard)                                   # end of shoe
+        self.table.shoe.cards = cards
+        discard_tray.cards.append(self.table.shoe.cards.pop(0)) # Burn top card to discard tray
+        self.table.shoe.is_active = True
         
     def deal_card(self, hand: Hand):
-        cards = self.shoe.cards
+        cards = self.table.shoe.cards
         new_card = cards.pop(0)
         if new_card == CutCard:
-            self.shoe.is_active = False
+            self.table.shoe.is_active = False
             new_card = cards.pop(0)
         hand.cards.append(new_card)
         
     def initial_deal(self):
-        pass
+        cards = self.table.shoe.cards
+        player_seats = self.table.player_seats
+        dealer_seat = self.table.dealer_seat
+        for seat in player_seats:
+            seat.hand = Hand()
+        dealer_seat.hand = Hand()
+        for _ in range(2):
+            for seat in player_seats:
+                assert seat.hand is not None
+                self.deal_card(seat.hand)
+            self.deal_card(dealer_seat.hand)
 
-           
 
-        
 class Player:
     name: str
     # bankroll: float
@@ -103,8 +114,10 @@ class Seat:
     player: Optional[Player | Dealer]
     
     def __init__(self, ) -> None:
-        pass
-    
+        self.is_occupied = False
+        self.hand = None
+        self.player = None
+ 
 class Table:
     player_seats: list[Seat]
     shoe: Shoe
@@ -119,23 +132,29 @@ class Table:
 
     def prepare_game(self):
         self.shoe = Shoe(self.num_decks)
-        self.dealer = Dealer(self.shoe)
+        self.dealer = Dealer(self)
         self.dealer_seat.player = self.dealer
-        self.dealer.prepare_shoe()
-        for card in self.shoe.cards:
-            print(card)
+        self.dealer.prepare_shoe()        
             
 class Round:
     is_active: bool
     table: Table
     seats: list[Seat]
     players: list[Player]
+    dealer: Dealer
     
+    def seat_players(self):
+        for seat, player in zip(self.seats, self.players):
+            seat.player = player
+            seat.is_occupied = True
+
     def __init__(self, table: Table) -> None:
         self.table = table
         self.seats = table.player_seats
         self.players = [Player(player["name"], player["strategy"]) for player in PLAYERS.values()]
-        # seat_players
+        self.dealer = table.dealer
+        self.seat_players()
+        self.dealer.initial_deal()
         # deal initial cards
         # play out player hands
         # play out dealer hand
@@ -143,12 +162,13 @@ class Round:
         # pay out (optional)
         pass
         
-    def seat_players(self):
-        for seat, player_name in zip(self.seats, self.players):
-            seat.player = PLAYERS[name]
-    
+
         
-table = Table(6).prepare_game()
+
+
+table = Table(6)
+table.prepare_game()
+round = Round(table)
 
 
 
